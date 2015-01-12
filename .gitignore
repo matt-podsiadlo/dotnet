@@ -189,4 +189,4 @@ _Pvt_Extensions/
 ModelManifest.xml
 
 # Google secrets
-mpBackup/client_secrets.json
+mpBackup/*.json
