@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace mpBackup
 {
-    class mpConfig
+    public class mpConfig
     {
         /// <summary>
         /// Directory where backups are stored.

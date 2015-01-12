@@ -8,16 +8,20 @@ using System.ServiceProcess;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+[assembly: log4net.Config.XmlConfigurator(Watch = true)]
 
 namespace mpBackup
 {
     public partial class mpBackupService : ServiceBase
     {
         public mpConfig config;
-        public mpLog log;
+        private static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
-        public mpBackupService()
+        public mpBackupService(bool isInteractive)
         {
+            log.Info("Starting the service, UserInteractive=" + isInteractive.ToString());
+            log.Info("lol");
+            log.Debug("wft");
             InitializeComponent();
         }
 
@@ -30,13 +34,26 @@ namespace mpBackup
                 Thread.Sleep(1000);
             }
 #endif
-            this.log = new mpLog(0);
-            this.config = new mpConfig();
+            try
+            {
+                serviceStart();
+            }
+            catch (Exception e)
+            {
+                log.Error("An error was caught: ", e);
+            }
+            
         }
 
         protected override void OnStop()
         {
-            this.log.logMessage("Service is stopping.", 0);
+            log.Info("Stopping the service.");
+        }
+
+        public void serviceStart()
+        {
+            this.config = new mpConfig();
+            GoogleTest test = new GoogleTest();
         }
     }
 }

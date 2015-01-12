@@ -15,11 +15,23 @@ namespace mpBackup
         static void Main()
         {
             ServiceBase[] ServicesToRun;
+            mpBackupService backupService = new mpBackupService(Environment.UserInteractive);
             ServicesToRun = new ServiceBase[] 
             { 
-                new mpBackupService() 
+                backupService
             };
-            ServiceBase.Run(ServicesToRun);
+            if (!Environment.UserInteractive)
+            {
+                // Startup as service.
+                ServiceBase.Run(ServicesToRun);
+            }
+            else
+            {
+                // Startup as an application.
+                backupService.serviceStart();
+                Console.WriteLine("Press any key to exit the application.");
+                Console.ReadKey();
+            }
         }
     }
 }
