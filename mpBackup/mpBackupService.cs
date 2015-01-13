@@ -12,12 +12,12 @@ using System.Threading.Tasks;
 
 namespace mpBackup
 {
-    public partial class mpBackupService : ServiceBase
+    public partial class MpBackupService : ServiceBase
     {
-        public mpConfig config;
+        public MpConfigReader config;
         private static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
-        public mpBackupService(bool isInteractive)
+        public MpBackupService(bool isInteractive)
         {
             log.Info("Starting the service, UserInteractive=" + isInteractive.ToString());
             log.Info("lol");
@@ -52,8 +52,8 @@ namespace mpBackup
 
         public void serviceStart()
         {
-            this.config = new mpConfig();
-            GoogleTest test = new GoogleTest();
+            this.config = new MpConfigReader();
+            MpBackupProcess backup = new MpBackupProcess(this.config.config);
         }
     }
 }

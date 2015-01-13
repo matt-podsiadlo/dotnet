@@ -7,20 +7,23 @@ using System.Threading.Tasks;
 
 namespace mpBackup
 {
-    public class mpConfig
+    public class MpConfig : ConfigurationSection
     {
-        /// <summary>
-        /// Directory where backups are stored.
-        /// </summary>
-        public string BACKUP_DIR { get; set; }
-
-        /// <summary>
-        /// Instantiate the class and read default configuration info from App.config
-        /// </summary>
-        public mpConfig()
+        [ConfigurationProperty("backupDirectory", IsRequired = true)]
+        public BackupDirectory backupDirectory 
         {
-            BACKUP_DIR = ConfigurationManager.AppSettings["BackupDirectory"];
+            get { return (BackupDirectory)this["backupDirectory"]; }
+            set { this["backupDirectory"] = value; }
         }
+    }
 
+    public class BackupDirectory : ConfigurationElement
+    {
+        [ConfigurationProperty("fullPath", DefaultValue = "", IsRequired = true)]
+        public string fullPath 
+        {
+            get { return (string)this["fullPath"]; }
+            set { this["fullPath"] = value; }
+        }
     }
 }

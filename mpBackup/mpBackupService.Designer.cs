@@ -1,6 +1,6 @@
 ﻿namespace mpBackup
 {
-    partial class mpBackupService
+    partial class MpBackupService
     {
         /// <summary> 
         /// Required designer variable.

@@ -91,14 +91,16 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="GoogleTest.cs" />
-    <Compile Include="mpBackupService.cs">
+    <Compile Include="GoogleBackupProvider.cs" />
+    <Compile Include="MpBackupProcess.cs" />
+    <Compile Include="MpConfig.cs" />
+    <Compile Include="MpBackupService.cs">
       <SubType>Component</SubType>
     </Compile>
-    <Compile Include="mpBackupService.Designer.cs">
-      <DependentUpon>mpBackupService.cs</DependentUpon>
+    <Compile Include="MpBackupService.Designer.cs">
+      <DependentUpon>MpBackupService.cs</DependentUpon>
     </Compile>
-    <Compile Include="mpConfig.cs" />
+    <Compile Include="MpConfigReader.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

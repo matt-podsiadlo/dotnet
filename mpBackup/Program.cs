@@ -15,7 +15,7 @@ namespace mpBackup
         static void Main()
         {
             ServiceBase[] ServicesToRun;
-            mpBackupService backupService = new mpBackupService(Environment.UserInteractive);
+            MpBackupService backupService = new MpBackupService(Environment.UserInteractive);
             ServicesToRun = new ServiceBase[] 
             { 
                 backupService
