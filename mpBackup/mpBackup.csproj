@@ -91,6 +91,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ContentTypes.cs" />
     <Compile Include="GoogleBackupProvider.cs" />
     <Compile Include="MpBackupProcess.cs" />
     <Compile Include="MpConfig.cs" />
@@ -100,7 +101,7 @@
     <Compile Include="MpBackupService.Designer.cs">
       <DependentUpon>MpBackupService.cs</DependentUpon>
     </Compile>
-    <Compile Include="MpConfigReader.cs" />
+    <Compile Include="MpConfigManager.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

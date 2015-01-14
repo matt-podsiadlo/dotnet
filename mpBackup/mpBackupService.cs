@@ -14,14 +14,12 @@ namespace mpBackup
 {
     public partial class MpBackupService : ServiceBase
     {
-        public MpConfigReader config;
+        public MpConfigManger config;
         private static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
         public MpBackupService(bool isInteractive)
         {
             log.Info("Starting the service, UserInteractive=" + isInteractive.ToString());
-            log.Info("lol");
-            log.Debug("wft");
             InitializeComponent();
         }
 
@@ -52,7 +50,7 @@ namespace mpBackup
 
         public void serviceStart()
         {
-            this.config = new MpConfigReader();
+            this.config = new MpConfigManger();
             MpBackupProcess backup = new MpBackupProcess(this.config.config);
         }
     }

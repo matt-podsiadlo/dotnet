@@ -15,27 +15,37 @@ namespace mpBackup
         private MpConfig config;
 
         private GoogleBackupProvider googleBackup;
+        private static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
         public MpBackupProcess(MpConfig config)
         {
             this.config = config;
-            this.googleBackup = new GoogleBackupProvider();
-            compareFiles(this.config.backupDirectory.fullPath);
+            this.googleBackup = new GoogleBackupProvider(this.config);
+            performBackup();
         }
 
-        private void backupDirectory(string fullPath)
+        public async void performBackup()
         {
-            DirectoryInfo dir = new DirectoryInfo(fullPath);
-            List<FileInfo> files = dir.GetFiles().ToList();
+            List<string> filesToUpload = await compareFiles(this.config.backupDirectory.fullPath);
+            if (filesToUpload.Count != 0)
+            {
+                await googleBackup.uploadFiles(filesToUpload);
+            }
         }
 
-        private async void compareFiles(string fullPath)
+        /// <summary>
+        /// Compare offline files with ones stored online and return a list of files that need to be uploaded.
+        /// </summary>
+        /// <param name="fullPath"></param>
+        private async Task<List<string>> compareFiles(string fullPath)
         {
             List<string> onlineFiles = new List<string>();
             onlineFiles = await this.googleBackup.getUploadedFileNames();
             DirectoryInfo dir = new DirectoryInfo(fullPath);
-            List<FileInfo> offlineFiles = new List<FileInfo>();
-            offlineFiles = dir.GetFiles().ToList();
+            List<string> offlineFiles = dir.GetFiles().Select(f => f.Name).ToList();
+            List<string> filesToUpload = offlineFiles.Except(onlineFiles).ToList();
+            log.Info("Found [" + filesToUpload.Count + "] files to upload.");
+            return filesToUpload;
         }
     }
 }
