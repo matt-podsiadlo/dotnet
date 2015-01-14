@@ -22,6 +22,13 @@ namespace mpBackup
             get { return (GoogleDriveSettings)this["googleDriveSettings"]; }
             set { this["googleDriveSettings"] = value; }
         }
+
+        [ConfigurationProperty("backupSchedule", IsRequired = true)]
+        public BackupSchedule backupSchedule
+        {
+            get { return (BackupSchedule)this["backupSchedule"]; }
+            set { this["backupSchedule"] = value; }
+        }
     }
 
     public class BackupDirectory : ConfigurationElement
@@ -41,6 +48,35 @@ namespace mpBackup
         {
             get { return (string)this["backupFolderId"]; }
             set { this["backupFolderId"] = value; }
+        }
+
+        public override bool IsReadOnly()
+        {
+            return false;
+        }
+    }
+
+    public class BackupSchedule : ConfigurationElement
+    {
+        [ConfigurationProperty("ncron", DefaultValue = "", IsRequired = false)]
+        public string ncron
+        {
+            get { return (string)this["ncron"]; }
+            set { this["ncron"] = value; }
+        }
+
+        [ConfigurationProperty("lastBackup", DefaultValue = "", IsRequired = false)]
+        public DateTime lastBackup
+        {
+            get { return (DateTime)this["lastBackup"]; }
+            set { this["lastBackup"] = value; }
+        }
+
+        [ConfigurationProperty("nextBackup", DefaultValue = "", IsRequired = false)]
+        public DateTime nextBackup
+        {
+            get { return (DateTime)this["nextBackup"]; }
+            set { this["nextBackup"] = value; }
         }
 
         public override bool IsReadOnly()

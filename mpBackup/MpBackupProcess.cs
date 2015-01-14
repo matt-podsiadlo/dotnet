@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using NCrontab;
 
 namespace mpBackup
 {
@@ -12,16 +14,34 @@ namespace mpBackup
     /// </summary>
     public class MpBackupProcess
     {
-        private MpConfig config;
+        public bool stopMonitoring = false;
 
+        private MpConfig config;
         private GoogleBackupProvider googleBackup;
         private static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
         public MpBackupProcess(MpConfig config)
         {
             this.config = config;
+            if (this.config.backupSchedule.nextBackup == null)
+            {
+                setNextBackupTime();
+            }
             this.googleBackup = new GoogleBackupProvider(this.config);
-            performBackup();
+        }
+
+        public void monitor()
+        {
+            log.Info("Backup monitoring started.");
+            while (!this.stopMonitoring)
+            {
+                if (DateTime.Compare(this.config.backupSchedule.nextBackup, DateTime.Now) <= 0)
+                {
+                    performBackup();
+                }
+                Thread.Sleep(60000);
+            }
+            
         }
 
         public async void performBackup()
@@ -31,6 +51,8 @@ namespace mpBackup
             {
                 await googleBackup.uploadFiles(filesToUpload);
             }
+            this.config.backupSchedule.lastBackup = DateTime.Now;
+            setNextBackupTime();
         }
 
         /// <summary>
@@ -46,6 +68,14 @@ namespace mpBackup
             List<string> filesToUpload = offlineFiles.Except(onlineFiles).ToList();
             log.Info("Found [" + filesToUpload.Count + "] files to upload.");
             return filesToUpload;
+        }
+
+        private void setNextBackupTime()
+        {
+            this.config.backupSchedule.nextBackup = CrontabSchedule.Parse(this.config.backupSchedule.ncron).GetNextOccurrence(DateTime.Now);
+            log.Info("Next backup to occur at: " + this.config.backupSchedule.nextBackup.ToString());
+            MpConfigManger configManager = new MpConfigManger(this.config);
+            configManager.saveConfig();
         }
     }
 }

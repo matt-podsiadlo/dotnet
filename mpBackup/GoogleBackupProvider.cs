@@ -82,15 +82,14 @@ namespace mpBackup
                 task.ContinueWith(t =>
                 {
                     // NotOnRanToCompletion - this code will be called if the upload fails
-                    log.Error("Upload Failed.", t.Exception);
+                    log.Error("Upload of [" + fileName + "] failed.", t.Exception);
                 }, TaskContinuationOptions.NotOnRanToCompletion);
-                //task.ContinueWith(t =>
-                //{
-                //    log.Debug("Closing the stream");
-                //    uploadStream.Dispose();
-                //    log.Debug("The stream was closed");
-                //});
-                log.Info("File uploaded succesfully.");
+                task.ContinueWith(t =>
+                {
+                    uploadStream.Dispose();
+                    log.Info("File [" + fileName + "] uploaded succesfully.");
+                });
+                
             }
         }
 

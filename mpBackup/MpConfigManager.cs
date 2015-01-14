@@ -42,6 +42,7 @@ namespace mpBackup
             // Need to explicitly assign values for each property:
             currentMpBackupConfig.googleDriveSettings.backupFolderId = this.config.googleDriveSettings.backupFolderId;
             currentMpBackupConfig.backupDirectory = this.config.backupDirectory;
+            currentMpBackupConfig.backupSchedule = this.config.backupSchedule;
 
             appConfig.Save(ConfigurationSaveMode.Modified);
         }

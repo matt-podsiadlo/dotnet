@@ -29,8 +29,6 @@ namespace mpBackup
             {
                 // Startup as an application.
                 backupService.serviceStart();
-                Console.WriteLine("Press any key to exit the application.");
-                Console.ReadKey();
             }
         }
     }

@@ -14,7 +14,10 @@ namespace mpBackup
 {
     public partial class MpBackupService : ServiceBase
     {
-        public MpConfigManger config;
+        private MpConfigManger config;
+        private MpBackupProcess backupProcess;
+        private Thread backupProcessThread;
+
         private static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
         public MpBackupService(bool isInteractive)
@@ -32,26 +35,29 @@ namespace mpBackup
                 Thread.Sleep(1000);
             }
 #endif
-            try
-            {
-                serviceStart();
-            }
-            catch (Exception e)
-            {
-                log.Error("An error was caught: ", e);
-            }
-            
+            serviceStart();
         }
 
         protected override void OnStop()
         {
             log.Info("Stopping the service.");
+            this.backupProcess.stopMonitoring = true;
         }
 
         public void serviceStart()
         {
-            this.config = new MpConfigManger();
-            MpBackupProcess backup = new MpBackupProcess(this.config.config);
+            try
+            {
+                this.config = new MpConfigManger();
+                this.backupProcess = new MpBackupProcess(this.config.config);
+                this.backupProcessThread = new Thread(backupProcess.monitor);
+                this.backupProcessThread.Start();
+            }
+            catch (Exception e)
+            {
+                log.Error("An error was caught: ", e);
+            }
+
         }
     }
 }
