@@ -20,6 +20,9 @@ namespace mpBackup
         private GoogleBackupProvider googleBackup;
         private static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
+        public Task backupTask;
+        public bool backupRunning = false;
+
         public MpBackupProcess(MpConfig config)
         {
             this.config = config;
@@ -37,22 +40,33 @@ namespace mpBackup
             {
                 if (DateTime.Compare(this.config.backupSchedule.nextBackup, DateTime.Now) <= 0)
                 {
-                    performBackup();
+                    if (this.backupTask == null || this.backupTask.IsCompleted)
+                    {
+                        this.backupTask = performBackup();
+                    }
+                    else
+                    {
+                        log.Info("Skipping backup because one is running already.");
+                    }
+                    
                 }
-                Thread.Sleep(60000);
+                Thread.Sleep(5000);
             }
+            log.Info("Backup monitoring stopped.");
             
         }
 
-        public async void performBackup()
+        public async Task performBackup()
         {
+            this.config.backupSchedule.lastBackup = DateTime.Now;
+            this.backupRunning = true;
             List<string> filesToUpload = await compareFiles(this.config.backupDirectory.fullPath);
             if (filesToUpload.Count != 0)
             {
                 await googleBackup.uploadFiles(filesToUpload);
             }
-            this.config.backupSchedule.lastBackup = DateTime.Now;
             setNextBackupTime();
+            this.backupRunning = false;
         }
 
         /// <summary>

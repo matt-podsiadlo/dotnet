@@ -13,6 +13,9 @@ using Google.Apis.Logging;
 using Google.Apis.Services;
 using System.Threading;
 using System.IO;
+using Google.Apis.Http;
+using Google.Apis.Util.Store;
+using mpBackup.MpGoogle;
 
 namespace mpBackup
 {
@@ -25,6 +28,10 @@ namespace mpBackup
 
         private string backupFolderId;
         private MpConfig config;
+        /// <summary>
+        /// Location of the secrets file. Using AppDomain since the executable will be residing in system32.
+        /// </summary>
+        private string clientSecrets = System.AppDomain.CurrentDomain.BaseDirectory + "client_secrets.json";
 
         public GoogleBackupProvider(MpConfig config)
         {
@@ -48,7 +55,16 @@ namespace mpBackup
         public async Task<List<string>> getUploadedFileNames()
         {
             log.Info("Getting the list of uploaded files.");
-            DriveService service = await authenticate();
+            DriveService service;
+            try
+            {
+                service = await authenticate();
+            }
+            catch (Exception e)
+            {
+                log.Error("Authentication failed: ", e);
+                return null;
+            }
             FilesResource.ListRequest request = service.Files.List();
             request.Q = "'" + this.backupFolderId + "' in parents"; // List only files in the mpBackup directory
             FileList files;
@@ -62,7 +78,16 @@ namespace mpBackup
         /// <param name="filesToUpload">Names of the files to upload, with .extension</param>
         public async Task uploadFiles(List<string> filesToUpload)
         {
-            DriveService service = await authenticate();
+            DriveService service;
+            try
+            {
+                service = await authenticate();
+            }
+            catch (Exception e)
+            {
+                log.Error("Authentication failed: ", e);
+                return;
+            }
             foreach (string fileName in filesToUpload)
             {
                 log.Info("Started uploading [" + fileName + "]");
@@ -100,10 +125,18 @@ namespace mpBackup
         private async Task<DriveService> authenticate()
         {
             UserCredential credential;
-            using (FileStream stream = new System.IO.FileStream("client_secrets.json", System.IO.FileMode.Open, System.IO.FileAccess.Read))
+            CancellationTokenSource token = new CancellationTokenSource(20000);
+            if (!System.IO.File.Exists(this.clientSecrets))
+            {
+                throw new Exception("The client secrets for Google API does not exist!");
+            }
+            using (FileStream stream = new System.IO.FileStream(this.clientSecrets, System.IO.FileMode.Open, System.IO.FileAccess.Read))
             {
                 log.Info("Attempting to authenticate with Google.");
-                credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(GoogleClientSecrets.Load(stream).Secrets, Scopes, "user", CancellationToken.None);
+                MpGoogleAuthenticator authenticator = new MpGoogleAuthenticator(stream, Scopes);
+                credential = await authenticator.authorizeAsync("user", CancellationToken.None);
+                //credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(GoogleClientSecrets.Load(stream).Secrets, Scopes, "user",
+                //    CancellationToken.None);
             }
             return new DriveService(new BaseClientService.Initializer()
             {
@@ -118,7 +151,16 @@ namespace mpBackup
         private async void initialize()
         {
             log.Info("Initializing Google Drive structure.");
-            DriveService service = await authenticate();
+            DriveService service;
+            try
+            {
+                service = await authenticate();
+            }
+            catch (Exception e)
+            {
+                log.Error("Authentication failed: ", e);
+                return;
+            }
             FilesResource.ListRequest request = service.Files.List();
             request.Q = "title='mpBackup' and mimeType='application/vnd.google-apps.folder' and trashed=false";
             FileList folder = request.Execute();

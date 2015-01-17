@@ -123,7 +123,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ContentTypes.cs" />
-    <Compile Include="GoogleBackupProvider.cs" />
+    <Compile Include="MpGoogle\MpCodeReceiver.cs" />
+    <Compile Include="MpGoogle\MpGoogleAuthenticator.cs" />
+    <Compile Include="MpGoogle\GoogleBackupProvider.cs" />
     <Compile Include="MpBackupProcess.cs" />
     <Compile Include="MpConfig.cs" />
     <Compile Include="MpBackupService.cs">
@@ -162,6 +164,7 @@
       <Install>false</Install>
     </BootstrapperPackage>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="..\packages\Microsoft.Bcl.Build.1.0.14\tools\Microsoft.Bcl.Build.targets" Condition="Exists('..\packages\Microsoft.Bcl.Build.1.0.14\tools\Microsoft.Bcl.Build.targets')" />
   <Target Name="EnsureBclBuildImported" BeforeTargets="BeforeBuild" Condition="'$(BclBuildImported)' == ''">

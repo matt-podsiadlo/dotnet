@@ -30,10 +30,12 @@ namespace mpBackup
         {
 #if DEBUG
             // This piece of code will only get executed in the Debug configuration. It stops the service from doing anything until a VS debugger is attached.
+            log.Debug("Waiting for debugger to be attached.");
             while (!Debugger.IsAttached)
             {
                 Thread.Sleep(1000);
             }
+            log.Debug("Debugger was attached.");
 #endif
             serviceStart();
         }
