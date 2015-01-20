@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NCrontab;
+using mpBackup.MpGUI;
 
 namespace mpBackup
 {
@@ -15,27 +16,45 @@ namespace mpBackup
     public class MpBackupProcess
     {
         public bool stopMonitoring = false;
+        public bool isGUIReady = false;
+        public CustomApplicationContext mpGUIContext;
+        public MpConfig config;
 
-        private MpConfig config;
         private GoogleBackupProvider googleBackup;
         private static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
         public Task backupTask;
         public bool backupRunning = false;
 
-        public MpBackupProcess(MpConfig config)
+        public MpMessageQueue messageQueue;
+        /// <summary>
+        /// Collection of tokens for all currently running tasks (can be used for cancellation).
+        /// </summary>
+        public List<CancellationTokenSource> runningTasks;
+
+        public MpBackupProcess(MpMessageQueue messageQueue)
         {
-            this.config = config;
+            this.runningTasks = new List<CancellationTokenSource>();
+            this.config = MpConfigManger.getConfig();
+            this.messageQueue = messageQueue;
             if (this.config.backupSchedule.nextBackup == null)
             {
                 setNextBackupTime();
             }
-            this.googleBackup = new GoogleBackupProvider(this.config);
         }
 
         public void monitor()
         {
+            log.Info("Waiting for the GUI to initialize.");
+            while (!this.isGUIReady)
+            {
+                Thread.Sleep(100);
+            }
             log.Info("Backup monitoring started.");
+            displayGUIMessage("Backup monitoring started.");
+            CancellationTokenSource initToken = new CancellationTokenSource(60000);
+            this.runningTasks.Add(initToken);
+            this.googleBackup = new GoogleBackupProvider(this, initToken.Token);
             while (!this.stopMonitoring)
             {
                 if (DateTime.Compare(this.config.backupSchedule.nextBackup, DateTime.Now) <= 0)
@@ -48,9 +67,8 @@ namespace mpBackup
                     {
                         log.Info("Skipping backup because one is running already.");
                     }
-                    
                 }
-                Thread.Sleep(5000);
+                Thread.Sleep(100);
             }
             log.Info("Backup monitoring stopped.");
             
@@ -90,6 +108,19 @@ namespace mpBackup
             log.Info("Next backup to occur at: " + this.config.backupSchedule.nextBackup.ToString());
             MpConfigManger configManager = new MpConfigManger(this.config);
             configManager.saveConfig();
+        }
+
+        /// <summary>
+        /// Display a baloon text message from the tray icon.
+        /// </summary>
+        /// <param name="msg"></param>
+        private void displayGUIMessage(string msg)
+        {
+            messageQueue.addMessageAsync(new MpMessage()
+            {
+                text = msg,
+                displayAs = MpMessage.DisplayAs.BALOON
+            });
         }
     }
 }

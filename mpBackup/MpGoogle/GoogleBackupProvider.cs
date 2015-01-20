@@ -28,24 +28,26 @@ namespace mpBackup
 
         private string backupFolderId;
         private MpConfig config;
+        private MpBackupProcess backupProcess;
+
         /// <summary>
-        /// Location of the secrets file. Using AppDomain since the executable will be residing in system32.
+        /// Location of the secrets file.
         /// </summary>
         private string clientSecrets = System.AppDomain.CurrentDomain.BaseDirectory + "client_secrets.json";
 
-        public GoogleBackupProvider(MpConfig config)
+        public GoogleBackupProvider(MpBackupProcess backupProcess, CancellationToken initToken)
         {
             log.Info("Creating the Google Drive service.");
-            this.config = config;
+            this.backupProcess = backupProcess;
+            this.config = backupProcess.config;
             if (config.googleDriveSettings.backupFolderId == null || config.googleDriveSettings.backupFolderId == "")
             {
-                initialize();
+                initialize(initToken);
             }
             else
             {
                 this.backupFolderId = config.googleDriveSettings.backupFolderId;
             }
-            
         }
 
         /// <summary>
@@ -58,7 +60,7 @@ namespace mpBackup
             DriveService service;
             try
             {
-                service = await authenticate();
+                service = await authenticateAsync();
             }
             catch (Exception e)
             {
@@ -81,7 +83,7 @@ namespace mpBackup
             DriveService service;
             try
             {
-                service = await authenticate();
+                service = await authenticateAsync();
             }
             catch (Exception e)
             {
@@ -122,7 +124,7 @@ namespace mpBackup
         /// Return an authenticated DriveService, should be an entry point for all Drive operations.
         /// </summary>
         /// <returns></returns>
-        private async Task<DriveService> authenticate()
+        private async Task<DriveService> authenticateAsync()
         {
             UserCredential credential;
             CancellationTokenSource token = new CancellationTokenSource(20000);
@@ -133,10 +135,29 @@ namespace mpBackup
             using (FileStream stream = new System.IO.FileStream(this.clientSecrets, System.IO.FileMode.Open, System.IO.FileAccess.Read))
             {
                 log.Info("Attempting to authenticate with Google.");
-                MpGoogleAuthenticator authenticator = new MpGoogleAuthenticator(stream, Scopes);
-                credential = await authenticator.authorizeAsync("user", CancellationToken.None);
-                //credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(GoogleClientSecrets.Load(stream).Secrets, Scopes, "user",
-                //    CancellationToken.None);
+                MpGoogleAuthenticator authenticator = new MpGoogleAuthenticator(stream, Scopes, this.backupProcess.messageQueue);
+                CancellationTokenSource timeout = new CancellationTokenSource(60000); // TODO use app.config for timeout
+                credential = await authenticator.authorizeAsync("user", timeout.Token);
+            }
+            return new DriveService(new BaseClientService.Initializer()
+            {
+                HttpClientInitializer = credential,
+                ApplicationName = "mpBackup"
+            });
+        }
+
+        private DriveService authenticate(CancellationToken cancellationToken)
+        {
+            UserCredential credential;
+            if (!System.IO.File.Exists(this.clientSecrets))
+            {
+                throw new Exception("The client secrets for Google API does not exist!");
+            }
+            using (FileStream stream = new System.IO.FileStream(this.clientSecrets, System.IO.FileMode.Open, System.IO.FileAccess.Read))
+            {
+                log.Info("Attempting to authenticate with Google.");
+                MpGoogleAuthenticator authenticator = new MpGoogleAuthenticator(stream, Scopes, this.backupProcess.messageQueue);
+                credential = authenticator.authorize("user", cancellationToken);
             }
             return new DriveService(new BaseClientService.Initializer()
             {
@@ -146,15 +167,15 @@ namespace mpBackup
         }
 
         /// <summary>
-        /// This should only run once, when the application is initially launched. Initializes the backup folder and GUID for files.
+        /// This should only run once (synchronously), when the application is initially launched. Initializes the backup folder and GUID for files.
         /// </summary>
-        private async void initialize()
+        private void initialize(CancellationToken initToken)
         {
             log.Info("Initializing Google Drive structure.");
             DriveService service;
             try
             {
-                service = await authenticate();
+                service = authenticate(initToken);
             }
             catch (Exception e)
             {

@@ -47,5 +47,10 @@ namespace mpBackup
             appConfig.Save(ConfigurationSaveMode.Modified);
         }
 
+        public static MpConfig getConfig()
+        {
+            return (MpConfig)System.Configuration.ConfigurationManager.GetSection("mpBackup");
+        }
+
     }
 }
