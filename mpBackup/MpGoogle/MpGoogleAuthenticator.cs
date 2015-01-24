@@ -42,8 +42,9 @@ namespace mpBackup.MpGoogle
 
         public async Task<UserCredential> authorizeAsync(string userId, CancellationToken taskCancellationToken)
         {
+            CancellationTokenSource globalTimeout = new CancellationTokenSource(60000); // TODO use app.config for timeout
             // Try to load a token from the data store.
-            var token = await this.flow.LoadTokenAsync(userId, taskCancellationToken);
+            var token = await this.flow.LoadTokenAsync(userId, globalTimeout.Token);
             // If the stored token is null or it doesn't have a refresh token and the access token is expired we need 
             // to retrieve a new authorization code.
             if (token == null || (token.RefreshToken == null && token.IsExpired(flow.Clock)))

@@ -41,6 +41,7 @@ namespace mpBackup.MpGoogle
 
         public AuthorizationCodeResponseUrl receiveCode(AuthorizationCodeRequestUrl url, CancellationToken taskCancellationToken)
         {
+            CancellationTokenSource globalTimeout = new CancellationTokenSource(60000); // TODO use app.config for timeout
             string authorizationUrl = url.Build().ToString();
             using (HttpListener listener = new HttpListener())
             {
@@ -53,12 +54,12 @@ namespace mpBackup.MpGoogle
                 var context = listener.GetContextAsync();
                 try
                 {
-                    while (taskCancellationToken.CanBeCanceled)
+                    while (!taskCancellationToken.IsCancellationRequested && !globalTimeout.Token.IsCancellationRequested)
                     {
-                        
-                        if (taskCancellationToken.IsCancellationRequested)
+
+                        if (taskCancellationToken.IsCancellationRequested || globalTimeout.Token.IsCancellationRequested)
                         {
-                            log.Error("The operation timed out.");
+                            log.Error("The operation was canceled or timed out.");
                             taskCancellationToken.ThrowIfCancellationRequested();
                         }
                         else if (context.IsCompleted)
@@ -79,7 +80,7 @@ namespace mpBackup.MpGoogle
                         this.authForm.BeginInvoke(new MethodInvoker(this.authForm.Dispose));
                     }
                 }
-                throw new Exception("The provided cancellation token is invalid.");
+                throw new Exception("Receiving the authentication code was interrupted.");
             }
 
         }

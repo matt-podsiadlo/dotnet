@@ -27,7 +27,6 @@ namespace mpBackup
         private static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
         private string backupFolderId;
-        private MpConfig config;
         private MpBackupProcess backupProcess;
 
         /// <summary>
@@ -39,14 +38,13 @@ namespace mpBackup
         {
             log.Info("Creating the Google Drive service.");
             this.backupProcess = backupProcess;
-            this.config = backupProcess.config;
-            if (config.googleDriveSettings.backupFolderId == null || config.googleDriveSettings.backupFolderId == "")
+            if (this.backupProcess.settingsManager.settings.onlineFolderId == null || this.backupProcess.settingsManager.settings.onlineFolderId == "")
             {
                 initialize(initToken);
             }
             else
             {
-                this.backupFolderId = config.googleDriveSettings.backupFolderId;
+                this.backupFolderId = this.backupProcess.settingsManager.settings.onlineFolderId;
             }
         }
 
@@ -54,13 +52,13 @@ namespace mpBackup
         /// Get the names (with .extension) of all files currently in the mpBackup folder on Drive.
         /// </summary>
         /// <returns></returns>
-        public async Task<List<string>> getUploadedFileNames()
+        public async Task<List<string>> getUploadedFileNames(CancellationToken cancellationToken)
         {
             log.Info("Getting the list of uploaded files.");
             DriveService service;
             try
             {
-                service = await authenticateAsync();
+                service = await authenticateAsync(cancellationToken);
             }
             catch (Exception e)
             {
@@ -78,12 +76,12 @@ namespace mpBackup
         /// Upload files to drive, based on the provided list of file names.
         /// </summary>
         /// <param name="filesToUpload">Names of the files to upload, with .extension</param>
-        public async Task uploadFiles(List<string> filesToUpload)
+        public async Task uploadFiles(List<string> filesToUpload, CancellationToken cancellationToken)
         {
             DriveService service;
             try
             {
-                service = await authenticateAsync();
+                service = await authenticateAsync(cancellationToken);
             }
             catch (Exception e)
             {
@@ -93,7 +91,7 @@ namespace mpBackup
             foreach (string fileName in filesToUpload)
             {
                 log.Info("Started uploading [" + fileName + "]");
-                string fullFilePath = this.config.backupDirectory.fullPath + "\\" + fileName;
+                string fullFilePath = this.backupProcess.settingsManager.settings.backupFolderPath + "\\" + fileName;
                 string extension = fileName.Substring(fileName.IndexOf('.') + 1);
                 string contentType = ContentTypes.getMimetypeForExtension(extension);
                 FileStream uploadStream = new System.IO.FileStream(fullFilePath, System.IO.FileMode.Open, System.IO.FileAccess.Read);
@@ -124,7 +122,7 @@ namespace mpBackup
         /// Return an authenticated DriveService, should be an entry point for all Drive operations.
         /// </summary>
         /// <returns></returns>
-        private async Task<DriveService> authenticateAsync()
+        private async Task<DriveService> authenticateAsync(CancellationToken cancellationToken)
         {
             UserCredential credential;
             CancellationTokenSource token = new CancellationTokenSource(20000);
@@ -136,8 +134,8 @@ namespace mpBackup
             {
                 log.Info("Attempting to authenticate with Google.");
                 MpGoogleAuthenticator authenticator = new MpGoogleAuthenticator(stream, Scopes, this.backupProcess.messageQueue);
-                CancellationTokenSource timeout = new CancellationTokenSource(60000); // TODO use app.config for timeout
-                credential = await authenticator.authorizeAsync("user", timeout.Token);
+                
+                credential = await authenticator.authorizeAsync("user", cancellationToken);
             }
             return new DriveService(new BaseClientService.Initializer()
             {
@@ -198,9 +196,8 @@ namespace mpBackup
             }
             else
             {
-                this.config.googleDriveSettings.backupFolderId = folder.Items[0].Id;
-                MpConfigManger configManager = new MpConfigManger(this.config);
-                configManager.saveConfig();
+                this.backupProcess.settingsManager.setBackupFolderId(folder.Items[0].Id);
+                this.backupProcess.settingsManager.saveSettings();
                 this.backupFolderId = folder.Items[0].Id;
             }
         }

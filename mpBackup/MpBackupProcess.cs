@@ -16,9 +16,7 @@ namespace mpBackup
     public class MpBackupProcess
     {
         public bool stopMonitoring = false;
-        public bool isGUIReady = false;
-        public CustomApplicationContext mpGUIContext;
-        public MpConfig config;
+        public MpSettingsManager settingsManager;
 
         private GoogleBackupProvider googleBackup;
         private static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
@@ -32,12 +30,12 @@ namespace mpBackup
         /// </summary>
         public List<CancellationTokenSource> runningTasks;
 
-        public MpBackupProcess(MpMessageQueue messageQueue)
+        public MpBackupProcess(MpMessageQueue messageQueue, MpSettingsManager settingsManager)
         {
             this.runningTasks = new List<CancellationTokenSource>();
-            this.config = MpConfigManger.getConfig();
+            this.settingsManager = settingsManager;
             this.messageQueue = messageQueue;
-            if (this.config.backupSchedule.nextBackup == null)
+            if (this.settingsManager.settings.nextBackupTime == null)
             {
                 setNextBackupTime();
             }
@@ -45,11 +43,6 @@ namespace mpBackup
 
         public void monitor()
         {
-            log.Info("Waiting for the GUI to initialize.");
-            while (!this.isGUIReady)
-            {
-                Thread.Sleep(100);
-            }
             log.Info("Backup monitoring started.");
             displayGUIMessage("Backup monitoring started.");
             CancellationTokenSource initToken = new CancellationTokenSource(60000);
@@ -57,11 +50,13 @@ namespace mpBackup
             this.googleBackup = new GoogleBackupProvider(this, initToken.Token);
             while (!this.stopMonitoring)
             {
-                if (DateTime.Compare(this.config.backupSchedule.nextBackup, DateTime.Now) <= 0)
+                if (DateTime.Compare(this.settingsManager.settings.nextBackupTime, DateTime.Now) <= 0)
                 {
                     if (this.backupTask == null || this.backupTask.IsCompleted)
                     {
-                        this.backupTask = performBackup();
+                        CancellationTokenSource backupCancellationToken = new CancellationTokenSource();
+                        this.runningTasks.Add(backupCancellationToken);
+                        this.backupTask = performBackup(backupCancellationToken.Token);
                     }
                     else
                     {
@@ -74,14 +69,14 @@ namespace mpBackup
             
         }
 
-        public async Task performBackup()
+        public async Task performBackup(CancellationToken cancellationToken)
         {
-            this.config.backupSchedule.lastBackup = DateTime.Now;
+            this.settingsManager.setLastBackupTime(DateTime.Now);
             this.backupRunning = true;
-            List<string> filesToUpload = await compareFiles(this.config.backupDirectory.fullPath);
+            List<string> filesToUpload = await compareFiles(this.settingsManager.settings.backupFolderPath, cancellationToken);
             if (filesToUpload.Count != 0)
             {
-                await googleBackup.uploadFiles(filesToUpload);
+                await googleBackup.uploadFiles(filesToUpload, cancellationToken);
             }
             setNextBackupTime();
             this.backupRunning = false;
@@ -91,10 +86,10 @@ namespace mpBackup
         /// Compare offline files with ones stored online and return a list of files that need to be uploaded.
         /// </summary>
         /// <param name="fullPath"></param>
-        private async Task<List<string>> compareFiles(string fullPath)
+        private async Task<List<string>> compareFiles(string fullPath, CancellationToken cancellationToken)
         {
             List<string> onlineFiles = new List<string>();
-            onlineFiles = await this.googleBackup.getUploadedFileNames();
+            onlineFiles = await this.googleBackup.getUploadedFileNames(cancellationToken);
             DirectoryInfo dir = new DirectoryInfo(fullPath);
             List<string> offlineFiles = dir.GetFiles().Select(f => f.Name).ToList();
             List<string> filesToUpload = offlineFiles.Except(onlineFiles).ToList();
@@ -104,10 +99,9 @@ namespace mpBackup
 
         private void setNextBackupTime()
         {
-            this.config.backupSchedule.nextBackup = CrontabSchedule.Parse(this.config.backupSchedule.ncron).GetNextOccurrence(DateTime.Now);
-            log.Info("Next backup to occur at: " + this.config.backupSchedule.nextBackup.ToString());
-            MpConfigManger configManager = new MpConfigManger(this.config);
-            configManager.saveConfig();
+            this.settingsManager.setNextBackupTime(CrontabSchedule.Parse(this.settingsManager.settings.backupScheduleCron).GetNextOccurrence(DateTime.Now));
+            log.Info("Next backup to occur at: " + this.settingsManager.settings.nextBackupTime.ToString());
+            this.settingsManager.saveSettings();
         }
 
         /// <summary>
