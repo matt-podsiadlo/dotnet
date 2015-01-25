@@ -136,10 +136,17 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ContentTypes.cs" />
+    <Compile Include="MpFileUpload.cs" />
     <Compile Include="MpGoogle\MpCodeReceiver.cs" />
     <Compile Include="MpGoogle\MpGoogleAuthenticator.cs" />
     <Compile Include="MpGoogle\GoogleBackupProvider.cs" />
     <Compile Include="MpBackupProcess.cs" />
+    <Compile Include="MpGoogle\MpInsertMediaUpload.cs" />
+    <Compile Include="MpGoogle\MpResumableUpload.cs" />
+    <Compile Include="MpUtilities\Http\HttpExtensions.cs" />
+    <Compile Include="MpUtilities\StringValueAttribute.cs" />
+    <Compile Include="MpUtilities\EnumStringValueTypeConverter.cs" />
+    <Compile Include="MpUtilities\MpUtilities.cs" />
     <Compile Include="MpGUI\AuthenticationForm.cs">
       <SubType>Form</SubType>
     </Compile>

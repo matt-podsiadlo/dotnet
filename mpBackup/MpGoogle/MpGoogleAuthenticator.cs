@@ -12,7 +12,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace mpBackup.MpGoogle
+namespace mpBackup.MpUtilities
 {
     /// <summary>
     /// Use this class to handle Google authentication. Provides appropriate delegates to handle Task continuation.

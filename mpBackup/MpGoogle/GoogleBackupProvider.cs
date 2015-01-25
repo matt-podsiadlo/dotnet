@@ -15,6 +15,8 @@ using System.Threading;
 using System.IO;
 using Google.Apis.Http;
 using Google.Apis.Util.Store;
+using mpBackup.MpUtilities;
+using Google.Apis.Upload;
 using mpBackup.MpGoogle;
 
 namespace mpBackup
@@ -76,8 +78,9 @@ namespace mpBackup
         /// Upload files to drive, based on the provided list of file names.
         /// </summary>
         /// <param name="filesToUpload">Names of the files to upload, with .extension</param>
-        public async Task uploadFiles(List<string> filesToUpload, CancellationToken cancellationToken)
+        public async Task<List<Task>> uploadFiles(List<string> filesToUpload, CancellationToken cancellationToken)
         {
+            List<Task> result = new List<Task>();
             DriveService service;
             try
             {
@@ -86,7 +89,7 @@ namespace mpBackup
             catch (Exception e)
             {
                 log.Error("Authentication failed: ", e);
-                return;
+                return result;
             }
             foreach (string fileName in filesToUpload)
             {
@@ -99,11 +102,15 @@ namespace mpBackup
                 { 
                     Title = fileName,
                     // Ensuring the file ends up inside the backup folder:
-                    Parents = new List<ParentReference>() { new ParentReference() {Id = this.backupFolderId} }
+                    Parents = new List<ParentReference>() { new ParentReference() { Id = this.backupFolderId } }
                 }, uploadStream, contentType);
 
                 insert.ChunkSize = FilesResource.InsertMediaUpload.MinimumChunkSize * 2;
-                Task task = insert.UploadAsync();
+                Task task = insert.UploadAsync(cancellationToken);
+                task.ContinueWith(t =>
+                    {
+                        log.Error("Upload of [" + fileName + "] was canceled.");
+                    }, TaskContinuationOptions.OnlyOnCanceled);
                 task.ContinueWith(t =>
                 {
                     // NotOnRanToCompletion - this code will be called if the upload fails
@@ -114,8 +121,60 @@ namespace mpBackup
                     uploadStream.Dispose();
                     log.Info("File [" + fileName + "] uploaded succesfully.");
                 });
-                
+                result.Add(task);
             }
+            return result;
+        }
+
+        /// <summary>
+        /// Uses the Google Drive API to upload a file to drive. Upload progress is tracked, cancellation is supported.
+        /// </summary>
+        /// <param name="localFile">Local file to upload.</param>
+        /// <param name="cancellationToken">Token to cancel the upload cleanly.</param>
+        public async void uploadFile(MpFileUpload localFile, CancellationToken cancellationToken)
+        {
+            DriveService service;
+            try
+            {
+                service = await authenticateAsync(cancellationToken);
+            }
+            catch (Exception e)
+            {
+                log.Error("Authentication failed: ", e);
+                return;
+            }
+            string contentType = ContentTypes.getMimetypeForExtension(localFile.fileExtension);
+            FileStream uploadStream = new System.IO.FileStream(localFile.fullPath, System.IO.FileMode.Open, System.IO.FileAccess.Read);
+
+            MpInsertMediaUpload insertCustom = new MpInsertMediaUpload(service, new Google.Apis.Drive.v2.Data.File
+            {
+                Title = localFile.fileName,
+                // Ensuring the file ends up inside the backup folder:
+                Parents = new List<ParentReference>() { new ParentReference() { Id = this.backupFolderId } }
+            }, uploadStream, contentType, localFile);
+            insertCustom.ChunkSize = FilesResource.InsertMediaUpload.MinimumChunkSize * 2;
+
+            Task uploadTask = insertCustom.UploadAsync(cancellationToken);
+            uploadTask.ContinueWith(t =>
+            {
+                log.Error("Upload of [" + localFile.fileName + "] was canceled.");
+            }, TaskContinuationOptions.OnlyOnCanceled);
+            uploadTask.ContinueWith(t =>
+            {
+                // NotOnRanToCompletion - this code will be called if the upload fails
+                log.Error("Upload of [" + localFile.fileName + "] failed.", t.Exception);
+            }, TaskContinuationOptions.NotOnRanToCompletion);
+            uploadTask.ContinueWith(t =>
+            {
+                uploadStream.Dispose();
+            });
+            uploadTask.Wait();
+        }
+
+        void insert_ProgressChanged(IUploadProgress obj)
+        {
+            //obj.
+            //log.Info("");
         }
 
         /// <summary>

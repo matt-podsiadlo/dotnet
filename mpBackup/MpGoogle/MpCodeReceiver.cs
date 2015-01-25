@@ -14,7 +14,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace mpBackup.MpGoogle
+namespace mpBackup.MpUtilities
 {
     public class MpCodeReceiver
     {
