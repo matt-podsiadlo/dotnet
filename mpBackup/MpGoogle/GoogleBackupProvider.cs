@@ -168,13 +168,18 @@ namespace mpBackup
             {
                 uploadStream.Dispose();
             });
-            uploadTask.Wait();
-        }
-
-        void insert_ProgressChanged(IUploadProgress obj)
-        {
-            //obj.
-            //log.Info("");
+            try
+            {
+                uploadTask.Wait();
+            }
+            catch (AggregateException e)
+            {
+                if (e.InnerExceptions.Count(ex => ex.GetType() != typeof(TaskCanceledException)) > 0)
+                {
+                    log.Error("Upload ended unexpectedly: ", e);
+                }
+            }
+            
         }
 
         /// <summary>
@@ -256,7 +261,7 @@ namespace mpBackup
             else
             {
                 this.backupProcess.settingsManager.setBackupFolderId(folder.Items[0].Id);
-                this.backupProcess.settingsManager.saveSettings();
+                this.backupProcess.settingsManager.saveSettings(false);
                 this.backupFolderId = folder.Items[0].Id;
             }
         }

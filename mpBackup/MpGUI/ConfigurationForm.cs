@@ -40,7 +40,8 @@ namespace mpBackup.MpGUI
         {
             this.settingsManager.setBackupFolderPath(backupFolderLabel.Text);
             this.settingsManager.setBackupScheduleCron(scheduleTextBox.Text);
-            if (!this.settingsManager.saveSettings())
+            this.settingsManager.settings.continuousMonitoring = continuousMonitoringcheckBox.Checked;
+            if (!this.settingsManager.saveSettings(true))
             {
                 errorLabel.Visible = true;
                 return;
@@ -57,9 +58,12 @@ namespace mpBackup.MpGUI
 
         void ConfigurationForm_Load(object sender, EventArgs e)
         {
-            errorLabel.Visible = (this.settingsManager.isValid) ? false : true;
-            backupFolderLabel.Text = this.settingsManager.settings.backupFolderPath;
+            errorLabel.Visible = !this.settingsManager.isValid;
+            continuousMonitoringcheckBox.Checked = this.settingsManager.settings.continuousMonitoring;
             scheduleTextBox.Text = this.settingsManager.settings.backupScheduleCron;
+            scheduleTextBox.Enabled = !continuousMonitoringcheckBox.Checked;
+            backupFolderLabel.Text = this.settingsManager.settings.backupFolderPath;
+            
         }
 
         void backupFolderBrowseButton_Click(object sender, EventArgs e)
@@ -69,6 +73,11 @@ namespace mpBackup.MpGUI
             {
                 backupFolderLabel.Text = backupFolderBrowserDialog.SelectedPath;
             }
+        }
+
+        private void continuousMonitoringcheckBox_CheckedChanged(object sender, EventArgs e)
+        {
+            scheduleTextBox.Enabled = !continuousMonitoringcheckBox.Checked;
         }
     }
 }
