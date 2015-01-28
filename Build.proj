@@ -1,0 +1,60 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <PropertyGroup>
+    <GeneratedAssemblyInfoFile Condition=" '$(GeneratedAssemblyInfoFile)' == '' ">$(MsBuildProjectDirectory)\Properties\GeneratedAssemblyInfo.cs</GeneratedAssemblyInfoFile>
+    <VersionFile Condition=" '$(VersionFile)' == '' ">$(MsBuildProjectDirectory)\Properties\Version.txt</VersionFile>
+    <BuildNoFile Condition=" '$(BuildNoFile)' == '' ">$(MsBuildProjectDirectory)\Properties\BuildNo.txt</BuildNoFile>
+    <AssemblyCopyright Condition="'$(AssemblyCopyright)' == ''"></AssemblyCopyright>
+
+    <SetAssemblyVersionEnabled Condition=" Exists('$(MSBuildCommunityTasksPath)\MSBuild.Community.Tasks.targets') AND Exists($(VersionFile)) ">true</SetAssemblyVersionEnabled>
+    <SetAssemblyVersionEnabled Condition=" '$(SetAssemblyVersionEnabled)' == '' ">false</SetAssemblyVersionEnabled>
+
+    <BuildDependsOn Condition=" '$(SetAssemblyVersionEnabled)' == 'true' ">
+      SetAssemblyVersion;
+      $(BuildDependsOn)
+    </BuildDependsOn>
+
+    <CleanDependsOn Condition=" '$(SetAssemblyVersionEnabled)' == 'true' ">
+      $(CleanDependsOn);
+      SetAssemblyVersionClean
+    </CleanDependsOn>
+  </PropertyGroup>
+
+  <!-- Workaround for missing task declaration in MSbuildTasks project (pull request already sent) -->
+  <UsingTask Condition="Exists($(MSBuildCommunityTasksLib))"
+     AssemblyFile="$(MSBuildCommunityTasksLib)"
+     TaskName="MSBuild.Community.Tasks.Git.GitBranch"
+   />
+
+  <Target Name="SetAssemblyVersion">
+    <PropertyGroup>
+      <Version>$([System.IO.File]::ReadAllText($(VersionFile)))</Version>
+      <BuildNoPrevious>$([System.IO.File]::ReadAllText($(BuildNoFile)))</BuildNoPrevious>
+      <BuildNo>$([MSBuild]::Add($(BuildNoPrevious), 1))</BuildNo>
+      <BuildTime>$([System.DateTime]::UtcNow.ToString("yyyy-MM-dd HH:mm:ss"))</BuildTime>
+      <AssemblyCopyrightText Condition=" '$(AssemblyCopyright)' != '' ">$(AssemblyCopyright) $([System.DateTime]::UtcNow.Year)</AssemblyCopyrightText>
+      <AssemblyCopyrightText Condition=" '$(AssemblyCopyrightText)' == '' ">Matt Podsiadlo</AssemblyCopyrightText>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <Compile Include="$(GeneratedAssemblyInfoFile)" />
+    </ItemGroup>
+
+    <GitVersion LocalPath="$(SolutionDir)">
+      <Output TaskParameter="CommitHash" PropertyName="CommitHash" />
+    </GitVersion>
+
+    <AssemblyInfo
+       CodeLanguage="CS"
+       OutputFile="$(GeneratedAssemblyInfoFile)"
+       AssemblyVersion="$(Version).$(BuildNo)"
+       AssemblyInformationalVersion="$(CommitHash)"
+       AssemblyCopyright="$(AssemblyCopyrightText)"
+      />
+  </Target>
+
+  <Target Name="SetAssemblyVersionClean" Condition="Exists($(GeneratedAssemblyInfoFile))">
+    <Delete Files="$(GeneratedAssemblyInfoFile)" />
+  </Target>
+</Project>

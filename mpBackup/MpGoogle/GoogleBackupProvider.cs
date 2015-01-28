@@ -75,58 +75,6 @@ namespace mpBackup
         }
 
         /// <summary>
-        /// Upload files to drive, based on the provided list of file names.
-        /// </summary>
-        /// <param name="filesToUpload">Names of the files to upload, with .extension</param>
-        public async Task<List<Task>> uploadFiles(List<string> filesToUpload, CancellationToken cancellationToken)
-        {
-            List<Task> result = new List<Task>();
-            DriveService service;
-            try
-            {
-                service = await authenticateAsync(cancellationToken);
-            }
-            catch (Exception e)
-            {
-                log.Error("Authentication failed: ", e);
-                return result;
-            }
-            foreach (string fileName in filesToUpload)
-            {
-                log.Info("Started uploading [" + fileName + "]");
-                string fullFilePath = this.backupProcess.settingsManager.settings.backupFolderPath + "\\" + fileName;
-                string extension = fileName.Substring(fileName.IndexOf('.') + 1);
-                string contentType = ContentTypes.getMimetypeForExtension(extension);
-                FileStream uploadStream = new System.IO.FileStream(fullFilePath, System.IO.FileMode.Open, System.IO.FileAccess.Read);
-                FilesResource.InsertMediaUpload insert = service.Files.Insert(new Google.Apis.Drive.v2.Data.File 
-                { 
-                    Title = fileName,
-                    // Ensuring the file ends up inside the backup folder:
-                    Parents = new List<ParentReference>() { new ParentReference() { Id = this.backupFolderId } }
-                }, uploadStream, contentType);
-
-                insert.ChunkSize = FilesResource.InsertMediaUpload.MinimumChunkSize * 2;
-                Task task = insert.UploadAsync(cancellationToken);
-                task.ContinueWith(t =>
-                    {
-                        log.Error("Upload of [" + fileName + "] was canceled.");
-                    }, TaskContinuationOptions.OnlyOnCanceled);
-                task.ContinueWith(t =>
-                {
-                    // NotOnRanToCompletion - this code will be called if the upload fails
-                    log.Error("Upload of [" + fileName + "] failed.", t.Exception);
-                }, TaskContinuationOptions.NotOnRanToCompletion);
-                task.ContinueWith(t =>
-                {
-                    uploadStream.Dispose();
-                    log.Info("File [" + fileName + "] uploaded succesfully.");
-                });
-                result.Add(task);
-            }
-            return result;
-        }
-
-        /// <summary>
         /// Uses the Google Drive API to upload a file to drive. Upload progress is tracked, cancellation is supported.
         /// </summary>
         /// <param name="localFile">Local file to upload.</param>

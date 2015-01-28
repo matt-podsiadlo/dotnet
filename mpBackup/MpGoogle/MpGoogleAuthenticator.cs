@@ -24,7 +24,7 @@ namespace mpBackup.MpUtilities
         private readonly IAuthorizationCodeFlow flow;
         private readonly MpCodeReceiver codeReceiver;
         /// <summary>The folder which is used by the <seealso cref="Google.Apis.Util.Store.FileDataStore"/>.</summary>
-        public static string Folder = "Google.Apis.Auth";
+        public static string Folder = "mpBackup";
 
         MpMessageQueue messageQueue;
 

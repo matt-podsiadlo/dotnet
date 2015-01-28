@@ -41,6 +41,7 @@ namespace mpBackup.MpGUI
             this.settingsManager.setBackupFolderPath(backupFolderLabel.Text);
             this.settingsManager.setBackupScheduleCron(scheduleTextBox.Text);
             this.settingsManager.settings.continuousMonitoring = continuousMonitoringcheckBox.Checked;
+            this.settingsManager.settings.autostart = autoStartCheckBox.Checked;
             if (!this.settingsManager.saveSettings(true))
             {
                 errorLabel.Visible = true;
@@ -63,6 +64,7 @@ namespace mpBackup.MpGUI
             scheduleTextBox.Text = this.settingsManager.settings.backupScheduleCron;
             scheduleTextBox.Enabled = !continuousMonitoringcheckBox.Checked;
             backupFolderLabel.Text = this.settingsManager.settings.backupFolderPath;
+            autoStartCheckBox.Checked = this.settingsManager.settings.autostart;
             
         }
 

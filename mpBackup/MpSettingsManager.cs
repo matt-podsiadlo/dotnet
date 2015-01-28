@@ -1,10 +1,12 @@
-﻿using NCrontab;
+﻿using Microsoft.Win32;
+using NCrontab;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace mpBackup
 {
@@ -57,6 +59,7 @@ namespace mpBackup
                 lock (this.settings)
                 {
                     this.settings.Save();
+                    registerAutoStart();
                     if (SettingsSaved != null) SettingsSaved(interactive, this.backupFolderChanged);
                     this.oldFolder = this.settings.backupFolderPath;
                     this.backupFolderChanged = false;
@@ -147,6 +150,19 @@ namespace mpBackup
         {
             this.isValid = false;
             if (SettingsInvalidated != null) SettingsInvalidated();
+        }
+
+        private void registerAutoStart()
+        {
+            RegistryKey autoStart = Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
+            if (this.settings.autostart)
+            {
+                autoStart.SetValue("mpBackup", "\"" + Application.ExecutablePath.ToString() + "\"");
+            }
+            else
+            {
+                autoStart.DeleteValue("mpBackup", false);
+            }
         }
     }
 }

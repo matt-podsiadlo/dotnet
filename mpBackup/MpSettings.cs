@@ -99,5 +99,22 @@ namespace mpBackup
                 this["continuousMonitoring"] = value;
             }
         }
+        /// <summary>
+        /// Start the application with Windows?
+        /// </summary>
+        [UserScopedSetting]
+        [DefaultSettingValueAttribute("true")]
+        [SettingsManageability(SettingsManageability.Roaming)]
+        public bool autostart
+        {
+            get
+            {
+                return (bool)this["autostart"];
+            }
+            set
+            {
+                this["autostart"] = value;
+            }
+        }
     }
 }

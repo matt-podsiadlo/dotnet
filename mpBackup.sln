@@ -10,6 +10,13 @@ Project("{6141683F-8A12-4E36-9623-2EB02B2C2303}") = "mpSetup", "mpSetup\mpSetup.
 		{EDDE379B-0544-49A8-86C6-4C6462F0154F} = {EDDE379B-0544-49A8-86C6-4C6462F0154F}
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".build", ".build", "{E6CDD1B4-9E96-4F86-B7CC-EC65289B0B3A}"
+	ProjectSection(SolutionItems) = preProject
+		Build.proj = Build.proj
+		.build\MSBuild.Community.Tasks.dll = .build\MSBuild.Community.Tasks.dll
+		.build\MSBuild.Community.Tasks.targets = .build\MSBuild.Community.Tasks.targets
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		CD_ROM|Any CPU = CD_ROM|Any CPU
