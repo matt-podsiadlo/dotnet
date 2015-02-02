@@ -68,13 +68,16 @@ namespace mpBackup.MpGUI
             }
             else
             {
-                // Start listening to settings invalidation event
+                // Bind to relevant events
                 this.settingsManager.SettingsInvalidated += settingsManager_SettingsInvalidated;
                 // Start the backup process
                 try
                 {
                     this.backupProcess = new MpBackupProcess(this.messageQueue, this.settingsManager);
-                    this.backupProcessThread = new Thread(backupProcess.monitor);
+                    this.backupProcess.InitializationFailed += backupProcess_InitializationFailed;
+                    this.backupProcess.UserAuthenticationRequired += backupProcess_UserAuthenticationRequired;
+                    // Starting the backup process in a separate thread.
+                    this.backupProcessThread = new Thread(() => startBackupProcess(this.backupProcess));
                     backupProcessThread.Start();
                 }
                 catch (Exception ex)
@@ -82,6 +85,32 @@ namespace mpBackup.MpGUI
                     log.Error("An error was caught: ", ex);
                 }
             }
+        }
+
+        void backupProcess_InitializationFailed(object sender, EventArgs e)
+        {
+            log.Error("Backup process initialization failed.");
+            exit(null, null);
+        }
+
+        private void startBackupProcess(MpBackupProcess backupProcess)
+        {
+            this.backupProcess.initialize();
+            if (this.backupProcess.currentState == MpBackupProcess.BackupProcessState.FAILED)
+            {
+                // Here we can handle what happens when the backup process fails to initialize, at the moment exiting the application is fine.
+            }
+            else if (this.backupProcess.currentState == MpBackupProcess.BackupProcessState.READY)
+            {
+                this.backupProcess.monitor();
+            }
+        }
+
+        private void backupProcess_UserAuthenticationRequired(object sender, string authenticationUrl)
+        {
+            Thread authFormThread = new Thread(() => showAuthenticationForm(authenticationUrl, (MpBackupProvider)sender));
+            authFormThread.SetApartmentState(ApartmentState.STA);
+            authFormThread.Start();
         }
 
         /// <summary>
@@ -171,6 +200,12 @@ namespace mpBackup.MpGUI
             Application.Run(form);
         }
 
+        private void showAuthenticationForm(string authenticationUrl, MpBackupProvider backupProvider)
+        {
+            AuthenticationForm authForm = new AuthenticationForm(authenticationUrl, backupProvider);
+            Application.Run(authForm);
+        }
+
         /// <summary>
         /// Exit the application. Dispose of all reasources here.
         /// </summary>
@@ -181,7 +216,7 @@ namespace mpBackup.MpGUI
             if (backupProcess != null)
             {
                 log.Info("Waiting for the backup process to finish.");
-                this.backupProcess.stopMonitoring();
+                this.backupProcess.stop();
                 while (this.backupProcess.currentState != MpBackupProcess.BackupProcessState.STOPPED)
                 {
                     Thread.Sleep(50);

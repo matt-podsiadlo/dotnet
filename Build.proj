@@ -32,9 +32,7 @@
       <Version>$([System.IO.File]::ReadAllText($(VersionFile)))</Version>
       <BuildNoPrevious>$([System.IO.File]::ReadAllText($(BuildNoFile)))</BuildNoPrevious>
       <BuildNo>$([MSBuild]::Add($(BuildNoPrevious), 1))</BuildNo>
-      <BuildTime>$([System.DateTime]::UtcNow.ToString("yyyy-MM-dd HH:mm:ss"))</BuildTime>
-      <AssemblyCopyrightText Condition=" '$(AssemblyCopyright)' != '' ">$(AssemblyCopyright) $([System.DateTime]::UtcNow.Year)</AssemblyCopyrightText>
-      <AssemblyCopyrightText Condition=" '$(AssemblyCopyrightText)' == '' ">Matt Podsiadlo</AssemblyCopyrightText>
+      <AssemblyCopyrightText Condition=" '$(AssemblyCopyright)' == '' ">$(AssemblyCopyright) $([System.DateTime]::UtcNow.Year) Matt Podsiadlo</AssemblyCopyrightText>
     </PropertyGroup>
 
     <ItemGroup>
@@ -57,4 +55,8 @@
   <Target Name="SetAssemblyVersionClean" Condition="Exists($(GeneratedAssemblyInfoFile))">
     <Delete Files="$(GeneratedAssemblyInfoFile)" />
   </Target>
+
+  <!--<Target Name="AfterBuild">
+    <WriteLinesToFile File="$(BuildNoFile)" Lines="$(BuildNo)" Overwrite="true" />
+  </Target>-->
 </Project>

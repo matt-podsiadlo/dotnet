@@ -136,9 +136,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ContentTypes.cs" />
+    <Compile Include="MpBackupProvider.cs" />
     <Compile Include="MpFileUpload.cs" />
     <Compile Include="MpGoogle\MpCodeReceiver.cs" />
-    <Compile Include="MpGoogle\MpGoogleAuthenticator.cs" />
     <Compile Include="MpGoogle\GoogleBackupProvider.cs" />
     <Compile Include="MpBackupProcess.cs" />
     <Compile Include="MpGoogle\MpInsertMediaUpload.cs" />
@@ -250,7 +250,4 @@
   </PropertyGroup>
   <Import Project="$(MSBuildCommunityTasksPath)\MSBuild.Community.Tasks.Targets" />
   <Import Project="$(SolutionDir)\Build.proj" />
-  <Target Name="AfterBuild">
-    <WriteLinesToFile File="$(BuildNoFile)" Lines="$(BuildNo)" Overwrite="true" />
-  </Target>
 </Project>

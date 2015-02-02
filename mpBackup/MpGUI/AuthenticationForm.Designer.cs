@@ -1,4 +1,4 @@
-﻿namespace mpBackup.mpGUI
+﻿namespace mpBackup.MpGUI
 {
     partial class AuthenticationForm
     {

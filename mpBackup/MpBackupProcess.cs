@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using NCrontab;
 using mpBackup.MpGUI;
+using mpBackup.MpUtilities;
 
 namespace mpBackup
 {
@@ -15,15 +16,19 @@ namespace mpBackup
     /// </summary>
     public class MpBackupProcess
     {
-        public BackupProcessState currentState = BackupProcessState.STOPPED;
+        public BackupProcessState currentState { get; private set; }
         public MpSettingsManager settingsManager;
 
         private GoogleBackupProvider googleBackup;
+        private bool initialized = false;
         private static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
 
         public Task backupTask;
 
         public MpMessageQueue messageQueue;
+
+        public event EventHandler<string> UserAuthenticationRequired;
+        public event EventHandler InitializationFailed;
 
         /// <summary>
         /// Represents a task that is currently being waited on, with a list of its children (if any) as:
@@ -46,15 +51,44 @@ namespace mpBackup
             {
                 setNextBackupTime();
             }
-            initialize();
             this.settingsManager.SettingsSaved += settingsManager_SettingsSaved;
+        }
+
+        #region Public Methods
+        /// <summary>
+        /// Initialize the backup process. This checks all settings are valid and initializes backup providers. MUST be called before monitor().
+        /// This method will attempt to initialize backup providers which can take a long time (http requests).
+        /// </summary>
+        /// <returns></returns>
+        public async void initialize()
+        {
+            this.currentState = BackupProcessState.INITIALIZING;
+            if (this.settingsManager.isValid)
+            {
+                this.currentTask = new Tuple<Tuple<Task, CancellationTokenSource>, List<Tuple<Task, CancellationTokenSource>>>(new Tuple<Task, CancellationTokenSource>(null, new CancellationTokenSource()), null);
+                bool initResult = await initializeBackupProviders(this.currentTask.Item1.Item2.Token);
+                 this.currentTask = null;
+                if (initResult)
+                {
+                    initializeFSMonitor();
+                    this.initialized = true;
+                    this.currentState = BackupProcessState.READY;
+                    return;
+                }
+                else
+                {
+                    this.currentState = BackupProcessState.FAILED;
+                    if (InitializationFailed != null) InitializationFailed(this, EventArgs.Empty);
+                    return;
+                }
+            }
+            this.currentState = BackupProcessState.FAILED;
+            throw new Exception("Attempted to initialize the backup provider with invalid settings.");
         }
 
         public async void monitor()
         {
-            this.currentTask = new Tuple<Tuple<Task, CancellationTokenSource>, List<Tuple<Task, CancellationTokenSource>>>(new Tuple<Task, CancellationTokenSource>(null, new CancellationTokenSource()), null);
-            await tryAuthenticate(this.currentTask.Item1.Item2.Token);
-            this.currentTask = null;
+            if (!this.initialized) throw new Exception("The backup process has not been initialized.");
             log.Info("Backup monitoring started.");
             displayGUIMessage("Backup monitoring started.");
             this.currentState = BackupProcessState.MONITORING;
@@ -105,9 +139,28 @@ namespace mpBackup
             }
         }
 
-        private void initialize()
+        public void stop()
         {
-            if (!this.settingsManager.isValid) throw new Exception("Attempted to initialize the backup process with invalid settings!");
+            BackupProcessState tempState = this.currentState;
+            this.currentState = BackupProcessState.STOP_REQUESTED;
+            if (tempState.IsIn(new List<BackupProcessState>() { BackupProcessState.MONITORING, BackupProcessState.AWAIT_AUTH, BackupProcessState.AWAIT_SETTINGS }))
+            {
+                // The backup process is currently inside monitor()
+                cancelRunningTasks();
+            }
+            else
+            {
+                this.currentState = BackupProcessState.STOPPED;
+            }
+                
+        }
+        #endregion
+        #region Private Methods
+        /// <summary>
+        /// Initialize the file system monitor to monitor the directory currently saved in user settings.
+        /// </summary>
+        private void initializeFSMonitor()
+        {
             log.Debug("Initializing a new File System Monitor.");
             DirectoryInfo backupDir = new DirectoryInfo(this.settingsManager.settings.backupFolderPath);
             this.backupDirWatcher = new FileSystemWatcher(backupDir.FullName);
@@ -123,10 +176,23 @@ namespace mpBackup
         /// Attempt to authenticate the google backup provider when the application is executed, so we can ensure valid credentials for later.
         /// </summary>
         /// <returns></returns>
-        private async Task tryAuthenticate(CancellationToken cancellationToken)
+        private async Task<bool> initializeBackupProviders(CancellationToken cancellationToken)
         {
-            this.googleBackup = new GoogleBackupProvider(this, cancellationToken);
+            bool result;
+            this.googleBackup = new GoogleBackupProvider(this);
+            this.googleBackup.AuthenticationRequired += googleBackup_AuthenticationRequired;
+            try
+            {
+                result = await this.googleBackup.initialize(cancellationToken);
+            }
+            catch (Exception e)
+            {
+                log.Error("An error was caught: ", e);
+                result = false;
+            }
+            return result;
         }
+
         private async Task performBackup(CancellationToken cancellationToken)
         {
             // TODO consider passing cancellation token to children tasks as a global cancel
@@ -203,8 +269,13 @@ namespace mpBackup
                 displayAs = MpMessage.DisplayAs.BALOON
             });
         }
-
+        #endregion
         #region Event Handlers
+        void googleBackup_AuthenticationRequired(object sender, string authenticationUrl)
+        {
+            if (UserAuthenticationRequired != null) UserAuthenticationRequired(sender, authenticationUrl);
+        }
+
         private void watcher_Changed(object sender, FileSystemEventArgs e)
         {
             this.directoryChangesDetected = true;
@@ -228,7 +299,7 @@ namespace mpBackup
             {
                 log.Debug("Folder change detected.");
                 cancelRunningTasks();
-                initialize();
+                initializeFSMonitor();
                 if (currentState == BackupProcessState.AWAIT_SETTINGS)
                 {
                     this.currentState = BackupProcessState.MONITORING;
@@ -236,13 +307,20 @@ namespace mpBackup
             }
         }
         #endregion
-
         /// <summary>
         /// Indicates the current state of MpBackupProcess
         /// </summary>
         public enum BackupProcessState
         {
             INITIALIZING,
+            /// <summary>
+            /// Initialization failed, the MpBackupProcess object is safe to be disposed.
+            /// </summary>
+            FAILED,
+            /// <summary>
+            /// The backup process is ready to start monitoring.
+            /// </summary>
+            READY,
             /// <summary>
             /// Backup process is waiting for valid settings
             /// </summary>
@@ -268,12 +346,6 @@ namespace mpBackup
             /// The backup proess is stopped.
             /// </summary>
             STOPPED
-        }
-
-        public void stopMonitoring()
-        {
-            this.currentState = BackupProcessState.STOP_REQUESTED;
-            cancelRunningTasks();
         }
     }
 }

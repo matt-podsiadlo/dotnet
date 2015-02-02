@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Reflection;
+using System.Collections.Generic;
 
 namespace mpBackup.MpUtilities
 {
@@ -82,6 +83,17 @@ namespace mpBackup.MpUtilities
         {
             object[] results = info.GetCustomAttributes(typeof(T), false);
             return results.Length == 0 ? null : (T)results[0];
+        }
+        /// <summary>
+        /// Check whether a value is present in a collection
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="this"></param>
+        /// <param name="possibles"></param>
+        /// <returns></returns>
+        public static bool IsIn<T>(this T @this, List<T> possibles)
+        {
+            return possibles.Contains(@this);
         }
     }
 

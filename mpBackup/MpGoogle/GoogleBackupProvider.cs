@@ -18,10 +18,14 @@ using Google.Apis.Util.Store;
 using mpBackup.MpUtilities;
 using Google.Apis.Upload;
 using mpBackup.MpGoogle;
+using Google.Apis.Auth.OAuth2.Responses;
+using Google.Apis.Auth.OAuth2.Flows;
+using Google.Apis.Auth.OAuth2.Requests;
+using System.Net;
 
 namespace mpBackup
 {
-    class GoogleBackupProvider
+    class GoogleBackupProvider : MpBackupProvider
     {
         /// <summary>The Drive API scopes.</summary>
         private static readonly string[] Scopes = new[] { DriveService.Scope.DriveFile, DriveService.Scope.Drive };
@@ -35,19 +39,15 @@ namespace mpBackup
         /// Location of the secrets file.
         /// </summary>
         private string clientSecrets = System.AppDomain.CurrentDomain.BaseDirectory + "client_secrets.json";
+        private DriveService service;
 
-        public GoogleBackupProvider(MpBackupProcess backupProcess, CancellationToken initToken)
+        public event EventHandler<string> AuthenticationRequired;
+        public event EventHandler AuthenticationSuccessful;
+
+        public GoogleBackupProvider(MpBackupProcess backupProcess)
         {
             log.Info("Creating the Google Drive service.");
-            this.backupProcess = backupProcess;
-            if (this.backupProcess.settingsManager.settings.onlineFolderId == null || this.backupProcess.settingsManager.settings.onlineFolderId == "")
-            {
-                initialize(initToken);
-            }
-            else
-            {
-                this.backupFolderId = this.backupProcess.settingsManager.settings.onlineFolderId;
-            }
+            this.backupProcess = backupProcess;            
         }
 
         /// <summary>
@@ -56,18 +56,7 @@ namespace mpBackup
         /// <returns></returns>
         public async Task<List<string>> getUploadedFileNames(CancellationToken cancellationToken)
         {
-            log.Info("Getting the list of uploaded files.");
-            DriveService service;
-            try
-            {
-                service = await authenticateAsync(cancellationToken);
-            }
-            catch (Exception e)
-            {
-                log.Error("Authentication failed: ", e);
-                return null;
-            }
-            FilesResource.ListRequest request = service.Files.List();
+            FilesResource.ListRequest request = this.service.Files.List();
             request.Q = "'" + this.backupFolderId + "' in parents"; // List only files in the mpBackup directory
             FileList files;
             files = request.Execute();
@@ -79,22 +68,12 @@ namespace mpBackup
         /// </summary>
         /// <param name="localFile">Local file to upload.</param>
         /// <param name="cancellationToken">Token to cancel the upload cleanly.</param>
-        public async void uploadFile(MpFileUpload localFile, CancellationToken cancellationToken)
+        public override async void uploadFile(MpFileUpload localFile, CancellationToken cancellationToken)
         {
-            DriveService service;
-            try
-            {
-                service = await authenticateAsync(cancellationToken);
-            }
-            catch (Exception e)
-            {
-                log.Error("Authentication failed: ", e);
-                return;
-            }
             string contentType = ContentTypes.getMimetypeForExtension(localFile.fileExtension);
             FileStream uploadStream = new System.IO.FileStream(localFile.fullPath, System.IO.FileMode.Open, System.IO.FileAccess.Read);
 
-            MpInsertMediaUpload insertCustom = new MpInsertMediaUpload(service, new Google.Apis.Drive.v2.Data.File
+            MpInsertMediaUpload insertCustom = new MpInsertMediaUpload(this.service, new Google.Apis.Drive.v2.Data.File
             {
                 Title = localFile.fileName,
                 // Ensuring the file ends up inside the backup folder:
@@ -128,90 +107,162 @@ namespace mpBackup
                 }
             }
             
-        }
-
-        /// <summary>
-        /// Return an authenticated DriveService, should be an entry point for all Drive operations.
-        /// </summary>
-        /// <returns></returns>
-        private async Task<DriveService> authenticateAsync(CancellationToken cancellationToken)
-        {
-            UserCredential credential;
-            CancellationTokenSource token = new CancellationTokenSource(20000);
-            if (!System.IO.File.Exists(this.clientSecrets))
-            {
-                throw new Exception("The client secrets for Google API does not exist!");
-            }
-            using (FileStream stream = new System.IO.FileStream(this.clientSecrets, System.IO.FileMode.Open, System.IO.FileAccess.Read))
-            {
-                log.Info("Attempting to authenticate with Google.");
-                MpGoogleAuthenticator authenticator = new MpGoogleAuthenticator(stream, Scopes, this.backupProcess.messageQueue);
-                
-                credential = await authenticator.authorizeAsync("user", cancellationToken);
-            }
-            return new DriveService(new BaseClientService.Initializer()
-            {
-                HttpClientInitializer = credential,
-                ApplicationName = "mpBackup"
-            });
-        }
-
-        private DriveService authenticate(CancellationToken cancellationToken)
-        {
-            UserCredential credential;
-            if (!System.IO.File.Exists(this.clientSecrets))
-            {
-                throw new Exception("The client secrets for Google API does not exist!");
-            }
-            using (FileStream stream = new System.IO.FileStream(this.clientSecrets, System.IO.FileMode.Open, System.IO.FileAccess.Read))
-            {
-                log.Info("Attempting to authenticate with Google.");
-                MpGoogleAuthenticator authenticator = new MpGoogleAuthenticator(stream, Scopes, this.backupProcess.messageQueue);
-                credential = authenticator.authorize("user", cancellationToken);
-            }
-            return new DriveService(new BaseClientService.Initializer()
-            {
-                HttpClientInitializer = credential,
-                ApplicationName = "mpBackup"
-            });
-        }
+        }        
 
         /// <summary>
         /// This should only run once (synchronously), when the application is initially launched. Initializes the backup folder and GUID for files.
         /// </summary>
-        private void initialize(CancellationToken initToken)
+        public override async Task<bool> initialize(CancellationToken cancellationToken)
         {
-            log.Info("Initializing Google Drive structure.");
-            DriveService service;
             try
             {
-                service = authenticate(initToken);
+                await authenticate(cancellationToken);
             }
             catch (Exception e)
             {
-                log.Error("Authentication failed: ", e);
-                return;
+                return false;
             }
-            FilesResource.ListRequest request = service.Files.List();
-            request.Q = "title='mpBackup' and mimeType='application/vnd.google-apps.folder' and trashed=false";
-            FileList folder = request.Execute();
-            if (folder.Items.Count != 1)
+            if (this.backupProcess.settingsManager.settings.onlineFolderId == null || this.backupProcess.settingsManager.settings.onlineFolderId == "")
             {
-                log.Info("Creating the mpBackup folder on Drive.");
-                FilesResource.InsertRequest createFolder = service.Files.Insert(new Google.Apis.Drive.v2.Data.File()
+                log.Info("Initializing Google Drive structure.");
+                FilesResource.ListRequest request = this.service.Files.List();
+                request.Q = "title='mpBackup' and mimeType='" + ContentTypes.GOOGLE_DRIVE_FOLDER + "' and trashed=false";
+                FileList folder = request.Execute();
+                if (folder.Items.Count != 1)
+                {
+                    log.Info("Creating the mpBackup folder on Drive.");
+                    FilesResource.InsertRequest createFolder = this.service.Files.Insert(new Google.Apis.Drive.v2.Data.File()
                     {
                         MimeType = ContentTypes.GOOGLE_DRIVE_FOLDER,
                         Title = "mpBackup",
                         Description = "Files archived with mpBackup are kept here."
                     });
-                createFolder.Execute();
+                    createFolder.Execute();
+                }
+                else
+                {
+                    this.backupProcess.settingsManager.setBackupFolderId(folder.Items[0].Id);
+                    this.backupProcess.settingsManager.saveSettings(false);
+                    this.backupFolderId = folder.Items[0].Id;
+                }
             }
             else
             {
-                this.backupProcess.settingsManager.setBackupFolderId(folder.Items[0].Id);
-                this.backupProcess.settingsManager.saveSettings(false);
-                this.backupFolderId = folder.Items[0].Id;
+                this.backupFolderId = this.backupProcess.settingsManager.settings.onlineFolderId;
             }
+            return true;
+        }
+
+        public override async Task authenticate(CancellationToken cancellationToken)
+        {
+            UserCredential credential = null;
+            base.cancelAuthentication = new CancellationTokenSource();
+            if (!System.IO.File.Exists(this.clientSecrets))
+            {
+                throw new Exception("The client secrets for Google API does not exist!");
+            }
+            using (FileStream stream = new System.IO.FileStream(this.clientSecrets, System.IO.FileMode.Open, System.IO.FileAccess.Read))
+            {
+                log.Info("Attempting to authenticate with Google.");
+                List<CancellationToken> cancellationTokens = new List<CancellationToken>()
+                {
+                    cancellationToken, base.cancelAuthentication.Token
+                };
+                try
+                {
+                    credential = getCredential("user", stream, cancellationTokens);
+                }
+                catch (Exception e)
+                {
+                    throw e;
+                }
+                if (base.cancelAuthentication != null) base.cancelAuthentication.Dispose();
+                base.cancelAuthentication = null;
+            }
+            this.service = new DriveService(new BaseClientService.Initializer()
+            {
+                HttpClientInitializer = credential,
+                ApplicationName = "mpBackup"
+            });
+        }
+
+        private UserCredential getCredential(string userId, Stream clientSecretsStream, List<CancellationToken> cancellationTokens, IDataStore dataStore = null)
+        {
+            IAuthorizationCodeFlow flow = new AuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
+            {
+                ClientSecretsStream = clientSecretsStream,
+                Scopes = Scopes,
+                DataStore = dataStore ?? new FileDataStore("mpBackup")
+            });
+
+            // Try to load a token from the data store.
+            Task<TokenResponse> token = flow.LoadTokenAsync(userId, cancellationTokens.First());
+            while (cancellationTokens.Count(c => c.CanBeCanceled) > 0)
+            {
+                if (cancellationTokens.Count(c => c.IsCancellationRequested) != 0)
+                {
+                    log.Error("Authorization canceled/timed out.");
+                    cancellationTokens.Where(c => c.IsCancellationRequested).First().ThrowIfCancellationRequested();
+                }
+                else if (token.IsCompleted)
+                {
+                    // If the stored token is null or it doesn't have a refresh token and the access token is expired we need 
+                    // to retrieve a new authorization code.
+                    if (token.Result == null || (token.Result.RefreshToken == null && token.Result.IsExpired(flow.Clock)))
+                    {
+                        MpCodeReceiver codeReceiver = new MpCodeReceiver();
+                        log.Info("Authorization token was not found in local storage. Attempting to request one from Google.");
+                        // Create a authorization code request.
+                        string redirectUri = codeReceiver.RedirectUri;
+                        AuthorizationCodeRequestUrl codeRequest = flow.CreateAuthorizationCodeRequest(redirectUri);
+                        if (AuthenticationRequired != null) AuthenticationRequired(this, codeRequest.Build().ToString());
+
+                        // Receive the code.
+                        AuthorizationCodeResponseUrl response = null;
+                        try
+                        {
+                            response = codeReceiver.receiveCode(codeRequest, cancellationTokens);
+                        }
+                        catch (Exception e)
+                        {
+                            throw new Exception("Receiving the authentication code failed.");
+                        }
+                        
+                        if (string.IsNullOrEmpty(response.Code))
+                        {
+                            TokenErrorResponse errorResponse = new TokenErrorResponse(response);
+                            log.Error("Received an error. The response is: " + errorResponse.ErrorDescription);
+                            throw new TokenResponseException(errorResponse);
+                        }
+
+                        log.Debug("Received the authorization code.");
+                        OnAuthenticationSuccessful(EventArgs.Empty);
+
+                        // Get the token based on the code.
+                        token = flow.ExchangeCodeForTokenAsync(userId, response.Code, codeReceiver.RedirectUri,
+                            cancellationTokens.First());
+                        while (cancellationTokens.Count(c => c.CanBeCanceled) > 0)
+                        {
+                            if (cancellationTokens.Count(c => c.IsCancellationRequested) != 0)
+                            {
+                                log.Error("Authorization canceled/timed out.");
+                                cancellationTokens.Where(c => c.IsCancellationRequested).First().ThrowIfCancellationRequested();
+                            }
+                            else if (token.IsCompleted)
+                            {
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        log.Debug("Using authentication token from local storage.");
+                        break;
+                    }
+                }
+                Thread.Sleep(50);
+            }
+            return new UserCredential(flow, userId, token.Result);
         }
     }
 }

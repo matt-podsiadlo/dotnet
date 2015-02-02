@@ -1,7 +1,6 @@
 ﻿using Google.Apis.Auth.OAuth2;
 using Google.Apis.Auth.OAuth2.Requests;
 using Google.Apis.Auth.OAuth2.Responses;
-using mpBackup.mpGUI;
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
@@ -12,7 +11,6 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 
 namespace mpBackup.MpUtilities
 {
@@ -22,8 +20,6 @@ namespace mpBackup.MpUtilities
 
         /// <summary>The call back format. Expects one port parameter.</summary>
         private const string LoopbackCallback = "http://localhost:{0}/authorize/";
-
-        private AuthenticationForm authForm;
 
         private string redirectUri;
         public string RedirectUri
@@ -39,28 +35,24 @@ namespace mpBackup.MpUtilities
             }
         }
 
-        public AuthorizationCodeResponseUrl receiveCode(AuthorizationCodeRequestUrl url, CancellationToken taskCancellationToken)
+        public AuthorizationCodeResponseUrl receiveCode(AuthorizationCodeRequestUrl url, List<CancellationToken> taskCancellationTokens)
         {
-            CancellationTokenSource globalTimeout = new CancellationTokenSource(60000); // TODO use app.config for timeout
             string authorizationUrl = url.Build().ToString();
             using (HttpListener listener = new HttpListener())
             {
                 listener.Prefixes.Add(RedirectUri);
                 listener.Start();
-                log.Debug("Open a browser with \"" + authorizationUrl + "\" URL");
-                Thread browserThread = new Thread(() => openAuthorizationForm(authorizationUrl));
-                browserThread.SetApartmentState(ApartmentState.STA);
-                browserThread.Start();
+                log.Debug("Start listening for a response on \"" + authorizationUrl + "\"");
                 var context = listener.GetContextAsync();
                 try
                 {
-                    while (!taskCancellationToken.IsCancellationRequested && !globalTimeout.Token.IsCancellationRequested)
+                    while (taskCancellationTokens.Count(c => c.CanBeCanceled) > 0)
                     {
 
-                        if (taskCancellationToken.IsCancellationRequested || globalTimeout.Token.IsCancellationRequested)
+                        if (taskCancellationTokens.Count(c => c.IsCancellationRequested) != 0)
                         {
                             log.Error("The operation was canceled or timed out.");
-                            taskCancellationToken.ThrowIfCancellationRequested();
+                            taskCancellationTokens.Where(c => c.IsCancellationRequested).First().ThrowIfCancellationRequested();
                         }
                         else if (context.IsCompleted)
                         {
@@ -74,11 +66,6 @@ namespace mpBackup.MpUtilities
                 finally
                 {
                     listener.Close();
-                    if (browserThread.IsAlive)
-                    {
-                        this.authForm.BeginInvoke(new MethodInvoker(this.authForm.Close));
-                        this.authForm.BeginInvoke(new MethodInvoker(this.authForm.Dispose));
-                    }
                 }
                 throw new Exception("Receiving the authentication code was interrupted.");
             }
@@ -105,12 +92,6 @@ namespace mpBackup.MpUtilities
             {
                 listener.Stop();
             }
-        }
-
-        private void openAuthorizationForm(string authUrl)
-        {
-            this.authForm = new AuthenticationForm(authUrl);
-            Application.Run(this.authForm);
         }
     }
 }
