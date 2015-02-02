@@ -21,7 +21,7 @@ namespace mpBackup
         static void Main()
         {
             string mutexName = @"Global\" + mpBackupSIGUID + WindowsIdentity.GetCurrent().User.ToString();
-            log.Debug("Starting the application with [" + mutexName + "] mutex.");
+            log.Debug("Starting the application with [" + mutexName + "] mutexs.");
             bool mutexIsNew;
             Mutex mutex = new Mutex(false, @"Global\" + mpBackupSIGUID + WindowsIdentity.GetCurrent().User.ToString(), out mutexIsNew);
             if (!mutexIsNew)

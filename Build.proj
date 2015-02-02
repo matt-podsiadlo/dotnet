@@ -56,7 +56,7 @@
     <Delete Files="$(GeneratedAssemblyInfoFile)" />
   </Target>
 
-  <!--<Target Name="AfterBuild">
-    <WriteLinesToFile File="$(BuildNoFile)" Lines="$(BuildNo)" Overwrite="true" />
-  </Target>-->
+  <Target Name="AfterBuild">
+    <WriteLinesToFile Condition="'$(Configuration)'=='Release'" File="$(BuildNoFile)" Lines="$(BuildNo)" Overwrite="true" />
+  </Target>
 </Project>
